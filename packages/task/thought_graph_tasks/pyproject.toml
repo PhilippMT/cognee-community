@@ -1,0 +1,9 @@
+[project]
+name = "cognee-community-tasks-thought-graph"
+version = "0.1.0"
+description = "ADHD-optimized thought graph tasks for cognee: models, algorithms, and operations for managing scattered thoughts, discovering hidden connections, and organizing brainfog into actionable insights."
+requires-python = ">=3.11,<=3.13"
+dependencies = [
+    "cognee>=0.5.2",
+    "networkx>=3.0",
+]
