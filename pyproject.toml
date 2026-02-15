@@ -1,0 +1,6 @@
+[tool.uv.workspace]
+members = [
+    "packages/task/thought_graph_tasks",
+    "packages/pipeline/thought_graph_pipeline",
+    "experimental/thought_graph_app",
+]

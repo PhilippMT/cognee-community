@@ -484,9 +484,24 @@ wheels = [
 ]
 
 [[package]]
-name = "cognee-community-tasks-thought-graph"
+name = "cognee-community-pipeline-thought-graph"
 version = "0.1.0"
 source = { editable = "." }
+dependencies = [
+    { name = "cognee" },
+    { name = "cognee-community-tasks-thought-graph" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cognee", specifier = ">=0.5.2" },
+    { name = "cognee-community-tasks-thought-graph", editable = "../../task/thought_graph_tasks" },
+]
+
+[[package]]
+name = "cognee-community-tasks-thought-graph"
+version = "0.1.0"
+source = { editable = "../../task/thought_graph_tasks" }
 dependencies = [
     { name = "cognee" },
     { name = "networkx" },
