@@ -39,6 +39,8 @@ class ThoughtNode(DataPoint):
         default_factory=lambda: datetime.now(timezone.utc),
         description="Timestamp of last update"
     )
+
+    metadata: Optional[Dict[str, Any]] = {"index_fields": ["content"]}
     context: Optional[str] = Field(
         default=None,
         description="Context about when/why this thought emerged"

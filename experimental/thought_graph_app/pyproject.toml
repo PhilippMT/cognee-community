@@ -1,13 +1,15 @@
 [project]
 name = "thought-graph-app"
 version = "0.1.0"
-description = "Standalone FastAPI application for the ADHD Thought Graph system. Provides REST API endpoints with Swagger UI for managing thoughts, discovering connections, and enriching knowledge graphs."
+description = "Standalone FastAPI application for the ADHD Thought Graph system. Provides REST API endpoints with Scalar UI for managing thoughts, discovering connections, and enriching knowledge graphs."
 readme = "README.md"
 requires-python = ">=3.11,<=3.13"
 dependencies = [
-    "cognee>=0.5.2",
+    "cognee[ollama,baml]>=0.5.2",
+    "boto3>=1.42.49",
     "cognee-community-tasks-thought-graph>=0.1.0",
     "fastapi>=0.110.0",
+    "scalar-fastapi>=1.0.0",
     "uvicorn>=0.27.0",
     "python-dotenv>=1.0.0",
 ]

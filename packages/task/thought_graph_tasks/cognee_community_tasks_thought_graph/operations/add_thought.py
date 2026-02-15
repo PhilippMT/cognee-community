@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from cognee.infrastructure.databases.graph import get_graph_engine
+from cognee.infrastructure.databases.vector import get_vector_engine
 from cognee.shared.logging_utils import get_logger
 
 from cognee_community_tasks_thought_graph.models.thought_node import ThoughtNode
@@ -90,6 +91,13 @@ async def add_thought(
         # Add node to graph database
         graph_engine = await get_graph_engine()
         await graph_engine.add_node(thought)
+
+        # Index in vector store for semantic search
+        try:
+            vector_engine = get_vector_engine()
+            await vector_engine.create_data_points("ThoughtNode", [thought])
+        except Exception as e:
+            logger.warning(f"Failed to index thought in vector store: {e}")
 
         logger.info(f"Successfully added thought node {thought.id}")
 

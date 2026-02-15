@@ -12,6 +12,8 @@ Subpackages:
     operations: High-level operations (add thoughts, discover connections, enrich, etc.)
 """
 
+import cognee_community_tasks_thought_graph.kuzu_compat  # noqa: F401 — patch KuzuAdapter
+
 from .algorithms import (
     calculate_centrality,
     calculate_pagerank,
