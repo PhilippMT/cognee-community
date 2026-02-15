@@ -1,19 +1,18 @@
 """ThoughtNode model for representing individual thoughts/ideas in the graph."""
 
-from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
-from uuid import UUID, uuid4
-from pydantic import Field
+from typing import Any, Dict, List, Optional
 
 from cognee.infrastructure.engine import DataPoint
+from pydantic import Field
 
 
 class ThoughtNode(DataPoint):
     """
     Represents a thought or idea node in the thought graph.
-    
+
     Optimized for ADHD brainfog management with quick capture and rich metadata.
-    
+
     Attributes:
         content: The actual thought/idea content (text)
         title: Optional short title for the thought
@@ -28,7 +27,7 @@ class ThoughtNode(DataPoint):
         centrality_score: Graph centrality score (computed)
         community_id: Community/cluster this thought belongs to (computed)
     """
-    
+
     content: str = Field(description="The main thought or idea content")
     title: Optional[str] = Field(default=None, description="Optional short title")
     tags: List[str] = Field(default_factory=list, description="Tags for categorization")
@@ -60,7 +59,7 @@ class ThoughtNode(DataPoint):
         le=10,
         description="User-defined importance score (1-10)"
     )
-    
+
     # Computed graph metrics (set by enrichment algorithms)
     connection_count: int = Field(default=0, description="Number of connections")
     centrality_score: Optional[float] = Field(
@@ -75,12 +74,12 @@ class ThoughtNode(DataPoint):
         default=None,
         description="Community/cluster ID (computed)"
     )
-    
+
     def __repr__(self) -> str:
         """String representation of the thought node."""
         title_part = f"'{self.title}'" if self.title else f"{self.content[:50]}..."
         return f"ThoughtNode({title_part}, tags={self.tags})"
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert thought node to dictionary."""
         return {

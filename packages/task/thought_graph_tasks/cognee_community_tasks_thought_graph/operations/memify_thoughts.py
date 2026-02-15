@@ -1,13 +1,14 @@
 """Enhanced memify operation for thought graphs with web enrichment and project matching."""
 
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from cognee.shared.logging_utils import get_logger
+
+from .edge_weight_management import calculate_potential_connections, decay_edge_weights
 from .enrich_thought_graph import enrich_thought_graph
-from .enrich_with_web import enrich_with_web_search, batch_enrich_with_web
-from .match_projects import match_to_projects, create_project_connections
-from .edge_weight_management import decay_edge_weights, calculate_potential_connections
+from .enrich_with_web import batch_enrich_with_web
+from .match_projects import create_project_connections, match_to_projects
 
 logger = get_logger(__name__)
 
@@ -26,17 +27,17 @@ async def memify_thoughts(
 ) -> Dict[str, Any]:
     """
     Enhanced memify operation for thought graphs.
-    
+
     Performs comprehensive enrichment including:
     1. Graph algorithm enrichment (PageRank, communities, etc.)
     2. Web search enrichment for each thought
     3. Project and repository matching
     4. Edge weight decay and pruning
     5. Potential connection discovery
-    
+
     This is the main enrichment pipeline that should be run periodically
     (e.g., after adding new thoughts or daily/weekly).
-    
+
     Args:
         thought_ids: Specific thoughts to enrich (None = all thoughts)
         enable_web_enrichment: Enrich with web search results
@@ -48,7 +49,7 @@ async def memify_thoughts(
         decay_rate: Edge weight decay rate
         min_edge_weight: Minimum edge weight before removal
         project_patterns: Dictionary of project -> keywords for matching
-        
+
     Returns:
         Dictionary with comprehensive enrichment results:
         - graph_enrichment: Results from graph algorithms
@@ -56,7 +57,7 @@ async def memify_thoughts(
         - project_matching: Results from project matching
         - edge_management: Results from edge decay
         - potential_connections: Number of potential connections found
-        
+
     Example:
         >>> results = await memify_thoughts(
         ...     enable_web_enrichment=True,
@@ -71,7 +72,7 @@ async def memify_thoughts(
         >>> print(f"Project matches: {results['project_matching']}")
     """
     logger.info("Starting enhanced memify operation for thought graph")
-    
+
     results = {
         "graph_enrichment": {},
         "web_enrichment": {},
@@ -79,7 +80,7 @@ async def memify_thoughts(
         "edge_management": {},
         "potential_connections": 0
     }
-    
+
     try:
         # 1. Graph Algorithm Enrichment
         logger.info("Phase 1: Graph algorithm enrichment")
@@ -92,11 +93,11 @@ async def memify_thoughts(
         )
         results["graph_enrichment"] = graph_results
         logger.info(f"Graph enrichment complete: {graph_results.get('nodes_enriched', 0)} nodes")
-        
+
         # 2. Web Enrichment
         if enable_web_enrichment:
             logger.info("Phase 2: Web enrichment")
-            
+
             if thought_ids:
                 web_results = await batch_enrich_with_web(
                     thought_ids=thought_ids,
@@ -113,20 +114,21 @@ async def memify_thoughts(
                     "total_connections": 0,
                     "total_content_added": 0
                 }
-            
+
             results["web_enrichment"] = web_results
-            logger.info(f"Web enrichment complete: {web_results.get('thoughts_enriched', 0)} thoughts enriched")
-        
+            enriched = web_results.get("thoughts_enriched", 0)
+            logger.info(f"Web enrichment complete: {enriched} thoughts enriched")
+
         # 3. Project Matching
         if enable_project_matching:
             logger.info("Phase 3: Project matching")
-            
+
             match_results = await match_to_projects(
                 thought_id=thought_ids[0] if thought_ids else None,
                 auto_detect=True,
                 project_patterns=project_patterns
             )
-            
+
             # Create connections for matches
             if match_results["matches"]:
                 connections_created = await create_project_connections(
@@ -134,28 +136,30 @@ async def memify_thoughts(
                     min_confidence=0.5
                 )
                 match_results["connections_created"] = connections_created
-            
+
             results["project_matching"] = match_results
-            logger.info(f"Project matching complete: {match_results.get('thoughts_matched', 0)} matches")
-        
+            matched = match_results.get("thoughts_matched", 0)
+            logger.info(f"Project matching complete: {matched} matches")
+
         # 4. Edge Weight Management
         if enable_edge_decay:
             logger.info("Phase 4: Edge weight decay")
-            
+
             decay_results = await decay_edge_weights(
                 decay_rate=decay_rate,
                 min_weight=min_edge_weight,
                 time_based=True,
                 days_threshold=30
             )
-            
+
             results["edge_management"] = decay_results
-            logger.info(f"Edge decay complete: {decay_results.get('edges_removed', 0)} edges removed")
-        
+            removed = decay_results.get("edges_removed", 0)
+            logger.info(f"Edge decay complete: {removed} edges removed")
+
         # 5. Potential Connections
         if enable_potential_connections and thought_ids:
             logger.info("Phase 5: Calculating potential connections")
-            
+
             total_potentials = 0
             for thought_id in thought_ids[:5]:  # Limit to first 5 to avoid excessive computation
                 potentials = await calculate_potential_connections(
@@ -164,14 +168,14 @@ async def memify_thoughts(
                     max_results=10
                 )
                 total_potentials += len(potentials)
-            
+
             results["potential_connections"] = total_potentials
             logger.info(f"Found {total_potentials} potential connections")
-        
+
         logger.info("Enhanced memify operation complete")
-        
+
         return results
-        
+
     except Exception as e:
         logger.error(f"Error in memify_thoughts: {e}")
         return results
@@ -184,33 +188,62 @@ async def cognify_and_memify_thoughts(
 ) -> Dict[str, Any]:
     """
     Combined cognify and memify operation for thought graphs.
-    
-    First processes data through cognify (if needed), then runs the full
+
+    Processes raw data through cognify to add thoughts, then runs the full
     memify enrichment pipeline.
-    
+
     Args:
-        data: Raw data to process (text, files, etc.)
+        data: Raw data to process — a list of thought dictionaries with keys
+              like ``content``, ``title``, ``tags``, etc., or plain text strings.
         enable_all_enrichments: Enable all enrichment features
         project_patterns: Project matching patterns
-        
+
     Returns:
         Combined results from cognify and memify operations
     """
     logger.info("Starting combined cognify and memify operation")
-    
-    # Note: This is a placeholder for the full implementation
-    # which would integrate with the main cognify pipeline
-    
-    # For now, just run memify on existing graph
+
+    from .add_thought import add_thoughts_batch
+
+    # Normalise incoming data into a list of thought dicts
+    thoughts_data: list = []
+    if isinstance(data, str):
+        thoughts_data = [{"content": data}]
+    elif isinstance(data, list):
+        for item in data:
+            if isinstance(item, str):
+                thoughts_data.append({"content": item})
+            elif isinstance(item, dict):
+                thoughts_data.append(item)
+    elif isinstance(data, dict):
+        thoughts_data = [data]
+
+    # Phase 1: Cognify — add thoughts to the graph
+    cognify_results: Dict[str, Any] = {}
+    thought_ids: list = []
+
+    if thoughts_data:
+        nodes = await add_thoughts_batch(thoughts_data, auto_connect=True)
+        thought_ids = [n.id for n in nodes]
+        cognify_results = {
+            "thoughts_added": len(nodes),
+            "thought_ids": [str(tid) for tid in thought_ids],
+        }
+        logger.info(f"Cognify phase added {len(nodes)} thoughts")
+    else:
+        cognify_results = {"thoughts_added": 0, "thought_ids": []}
+
+    # Phase 2: Memify — run the full enrichment pipeline
     memify_results = await memify_thoughts(
+        thought_ids=thought_ids if thought_ids else None,
         enable_web_enrichment=enable_all_enrichments,
         enable_project_matching=enable_all_enrichments,
         enable_edge_decay=enable_all_enrichments,
         enable_potential_connections=enable_all_enrichments,
         project_patterns=project_patterns
     )
-    
+
     return {
-        "cognify_results": {},  # Placeholder
+        "cognify_results": cognify_results,
         "memify_results": memify_results
     }

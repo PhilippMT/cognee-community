@@ -12,10 +12,10 @@ Modules:
     transitive_connections: Find hidden indirect relationships (A→B→C).
 """
 
-from .pagerank import calculate_pagerank, get_top_pagerank_thoughts
 from .centrality import calculate_centrality, find_bridge_thoughts
 from .community_detection import detect_communities, get_community_summary
-from .shortest_path import find_shortest_paths, find_connection_chains
+from .pagerank import calculate_pagerank, get_top_pagerank_thoughts
+from .shortest_path import find_connection_chains, find_shortest_paths
 from .transitive_connections import find_transitive_connections, suggest_missing_links
 
 __all__ = [
