@@ -205,7 +205,7 @@ async def cognify_and_memify_thoughts(
 
     from .add_thought import add_thoughts_batch
 
-    # Normalise incoming data into a list of thought dicts
+    # Normalize incoming data into a list of thought dicts
     thoughts_data: list = []
     if isinstance(data, str):
         thoughts_data = [{"content": data}]
