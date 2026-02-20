@@ -28,6 +28,8 @@ on:
         required: true
       EMBEDDING_API_VERSION:
         required: true
+      SGAI_API_KEY:
+        required: false
 
 jobs:
   test-scrapegraph-example:
