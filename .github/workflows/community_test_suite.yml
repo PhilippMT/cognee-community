@@ -108,6 +108,7 @@ jobs:
       EMBEDDING_ENDPOINT: ${{ secrets.EMBEDDING_ENDPOINT }}
       EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
       EMBEDDING_API_VERSION: ${{ secrets.EMBEDDING_API_VERSION }}
+      SGAI_API_KEY: ${{ secrets.SGAI_API_KEY }}
 
   summary:
     name: Test Summary
