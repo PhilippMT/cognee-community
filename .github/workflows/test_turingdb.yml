@@ -54,20 +54,10 @@ jobs:
           package-path: packages/graph/turingdb
           event-type: ${{ inputs.event-type }}
 
-      - name: Wait for TuringDB
-        run: |
-          for i in {1..30}; do
-            if nc -z localhost 6666; then
-              echo "TuringDB is ready"
-              break
-            fi
-            echo "Waiting for TuringDB..."
-            sleep 2
-          done
-
       - name: Run TuringDB Example
         env:
           ENV: 'dev'
+          ENABLE_BACKEND_ACCESS_CONTROL: False
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
           LLM_ENDPOINT: ${{ secrets.LLM_ENDPOINT }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
@@ -84,6 +74,7 @@ jobs:
       - name: Run TuringDB Tests
         env:
           ENV: 'dev'
+          ENABLE_BACKEND_ACCESS_CONTROL: False
           LLM_MODEL: ${{ secrets.LLM_MODEL }}
           LLM_ENDPOINT: ${{ secrets.LLM_ENDPOINT }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
