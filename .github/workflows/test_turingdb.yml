@@ -55,7 +55,7 @@ jobs:
 
       - name: Start TuringDB
         run: |
-          uv turingdb &
+          poetry run turingdb &
           for i in {1..30}; do
             if nc -z localhost 6666; then
               echo "TuringDB is up"
