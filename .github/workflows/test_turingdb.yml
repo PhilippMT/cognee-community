@@ -51,12 +51,20 @@ jobs:
 
       - name: Install TuringDB (poetry)
         working-directory: ./packages/graph/turingdb
-        run: poetry add turingdb
+        run: poetry run pip install turingdb
 
       - name: Start TuringDB
         run: |
           turingdb &
-          sleep 3
+          for i in {1..30}; do
+            if nc -z localhost 6666; then
+              echo "TuringDB is up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "TuringDB did not start in time" >&2
+          exit 1
 
       - name: Run TuringDB Example
         env:
