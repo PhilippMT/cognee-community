@@ -1,7 +1,7 @@
 import asyncio
 import json
 from textwrap import dedent
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, List, Optional
 from uuid import UUID
 
 from cognee.infrastructure.databases.vector.exceptions import CollectionNotFoundError
@@ -96,10 +96,11 @@ class FalkorDBAdapter:
         url: str | None = None,
         api_key: str | None = None,
         database_name: str | None = "cognee_graph",
+        **kwargs,
     ):
         self.driver = FalkorDB(
             host=url if url else graph_database_url,
-            port=graph_database_port,
+            port=graph_database_port if graph_database_port else 6379,
             username=graph_database_username,
             password=graph_database_password,
         )
@@ -769,6 +770,7 @@ class FalkorDBAdapter:
         limit: int | None = None,
         with_vector: bool = False,
         include_payload: bool = False,
+        node_name: Optional[List[str]] = None,
     ) -> list:
         """
         Search for nodes in a collection based on text or vector query, with optional limitation
@@ -869,6 +871,7 @@ class FalkorDBAdapter:
         limit: int | None = None,
         with_vectors: bool = False,
         include_payload: bool = False,
+        node_name: Optional[List[str]] = None,
     ) -> list:
         """
         Perform batch search across multiple queries based on text inputs and return results

@@ -1,4 +1,5 @@
 import asyncio
+from typing import List, Optional
 
 from cognee.infrastructure.databases.exceptions import MissingQueryParameterError
 from cognee.infrastructure.databases.vector import VectorDBInterface
@@ -181,6 +182,7 @@ class QDrantAdapter(VectorDBInterface):
         limit: int | None = 15,
         with_vector: bool = False,
         include_payload: bool = False,
+        node_name: Optional[List[str]] = None,
     ) -> list[ScoredResult]:
         if query_text is None and query_vector is None:
             raise MissingQueryParameterError()
@@ -253,6 +255,7 @@ class QDrantAdapter(VectorDBInterface):
         limit: int | None = None,
         with_vectors: bool = False,
         include_payload: bool = False,
+        node_name: Optional[List[str]] = None,
     ):
         """
         Perform batch search in a Qdrant collection with dynamic search requests.

@@ -1,4 +1,5 @@
 import asyncio
+from typing import List, Optional
 
 from cognee.infrastructure.databases.exceptions import MissingQueryParameterError
 from cognee.infrastructure.databases.vector.embeddings.EmbeddingEngine import (
@@ -392,6 +393,7 @@ class WeaviateAdapter(VectorDBInterface):
         limit: int | None = 15,
         with_vector: bool = False,
         include_payload: bool = False,
+        node_name: Optional[List[str]] = None,
     ):
         """
         Perform a search on a collection using either a text query or a vector query.
@@ -472,6 +474,7 @@ class WeaviateAdapter(VectorDBInterface):
         limit: int | None,
         with_vectors: bool = False,
         include_payload: bool = False,
+        node_name: Optional[List[str]] = None,
     ):
         """
         Execute a batch search for multiple query texts in the specified collection.
