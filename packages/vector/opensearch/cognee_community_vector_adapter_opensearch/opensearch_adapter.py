@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+from typing import List, Optional
 
 from cognee.infrastructure.databases.exceptions import MissingQueryParameterError
 from cognee.infrastructure.databases.vector.embeddings.EmbeddingEngine import (
@@ -287,6 +288,7 @@ class OpenSearchAdapter(VectorDBInterface):
         limit: int | None = 15,
         with_vector: bool = False,
         include_payload: bool = False,
+        node_name: Optional[List[str]] = None,
     ) -> list[ScoredResult]:
         """
         Search for similar data points in a collection using a query text or vector.
@@ -349,6 +351,7 @@ class OpenSearchAdapter(VectorDBInterface):
         limit: int | None = 15,
         with_vectors: bool = False,
         include_payload: bool = False,
+        node_name: Optional[List[str]] = None,
     ):
         """
         Perform a batch search for multiple query texts.

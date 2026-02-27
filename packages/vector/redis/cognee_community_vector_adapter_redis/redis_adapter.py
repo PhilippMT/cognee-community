@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Any
+from typing import Any, List, Optional
 from uuid import UUID
 
 from cognee.infrastructure.databases.exceptions import MissingQueryParameterError
@@ -333,6 +333,7 @@ class RedisAdapter(VectorDBInterface):
         limit: int | None = 15,
         with_vector: bool = False,
         include_payload: bool = True,
+        node_name: Optional[List[str]] = None,
     ) -> list[ScoredResult]:
         """Search for similar vectors in the collection.
 
@@ -425,6 +426,7 @@ class RedisAdapter(VectorDBInterface):
         limit: int | None,
         with_vectors: bool = False,
         include_payload: bool = True,
+        node_name: Optional[List[str]] = None,
     ) -> list[list[ScoredResult]]:
         """Perform batch search for multiple queries.
 

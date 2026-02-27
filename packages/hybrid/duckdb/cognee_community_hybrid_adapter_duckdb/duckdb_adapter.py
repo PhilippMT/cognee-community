@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 from uuid import UUID
 
 import duckdb
@@ -260,6 +260,7 @@ class DuckDBAdapter(VectorDBInterface, GraphDBInterface):
         limit: int | None = 15,
         with_vector: bool = True,
         include_payload: bool = False,
+        node_name: Optional[List[str]] = None,
     ) -> list[ScoredResult]:
         """[VECTOR] Search for similar vectors."""
         from cognee.infrastructure.databases.exceptions import (
@@ -368,6 +369,7 @@ class DuckDBAdapter(VectorDBInterface, GraphDBInterface):
         limit: int | None = 15,
         with_vectors: bool = False,
         include_payload: bool = False,
+        node_name: Optional[List[str]] = None,
     ) -> list[list[ScoredResult]]:
         """[VECTOR] Perform batch vector search."""
         # Embed all queries at once

@@ -1,6 +1,6 @@
 import asyncio
 import os
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, List, Optional, cast
 
 from pymilvus import MilvusClient
 
@@ -328,6 +328,7 @@ class MilvusAdapter:
         limit: int | None = 10,
         with_vector: bool = False,
         include_payload: bool = False,
+        node_name: Optional[List[str]] = None,
         **kwargs: object,
     ) -> list[dict[str, object]]:
         """
@@ -421,6 +422,7 @@ class MilvusAdapter:
         limit: int | None = 10,
         with_vectors: bool = False,
         include_payload: bool = False,
+        node_name: Optional[List[str]] = None,
         **kwargs: object,
     ) -> list[list[dict[str, object]]]:
         """
