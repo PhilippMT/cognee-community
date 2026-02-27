@@ -49,8 +49,9 @@ jobs:
           package-path: packages/graph/turingdb
           event-type: ${{ inputs.event-type }}
 
-      - name: Install TuringDB (uv)
-        run: uv pip install turingdb
+      - name: Install TuringDB (poetry)
+        working-directory: ./packages/graph/turingdb
+        run: poetry add turingdb
 
       - name: Start TuringDB
         run: |
