@@ -57,7 +57,7 @@ jobs:
         working-directory: ./packages/graph/turingdb
         run: |
           touch "$HOME/.turing_history"
-          poetry run turingdb &
+          poetry run turingdb -demon &
           for i in {1..30}; do
             if nc -z localhost 6666; then
               echo "TuringDB is up"
