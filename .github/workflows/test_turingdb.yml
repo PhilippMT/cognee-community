@@ -38,11 +38,6 @@ jobs:
   test-turingdb:
     name: "TuringDB Community Adapter Test"
     runs-on: ubuntu-22.04
-    services:
-      turingdb:
-        image: turingdbai/turingdb:nightly
-        ports:
-          - 6666:6666
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -53,6 +48,14 @@ jobs:
           python-version: '3.11.x'
           package-path: packages/graph/turingdb
           event-type: ${{ inputs.event-type }}
+
+      - name: Install TuringDB (uv)
+        run: uv pip install turingdb
+
+      - name: Start TuringDB
+        run: |
+          turingdb &
+          sleep 3
 
       - name: Run TuringDB Example
         env:
