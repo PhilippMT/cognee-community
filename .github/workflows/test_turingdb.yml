@@ -54,6 +54,7 @@ jobs:
         run: poetry run pip install turingdb
 
       - name: Start TuringDB
+        working-directory: ./packages/graph/turingdb
         run: |
           poetry run turingdb &
           for i in {1..30}; do
