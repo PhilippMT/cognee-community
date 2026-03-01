@@ -18,21 +18,25 @@ Modules:
     memify_thoughts: Integrated enrichment pipeline combining all features.
 """
 
-from .discover_connections import discover_connections
-from .find_surprise_connections import find_surprise_connections
-from .get_thought_neighbors import get_thought_neighbors
-from .enrich_thought_graph import enrich_thought_graph
 from .add_thought import add_thought, add_thoughts_batch
-from .get_thought_communities import get_thought_communities
-from .enrich_with_web import enrich_with_web_search, enrich_with_scraped_content, batch_enrich_with_web
-from .match_projects import match_to_projects, create_project_connections, find_project_clusters
+from .discover_connections import discover_connections
 from .edge_weight_management import (
-    decay_edge_weights,
-    reinforce_edge,
     calculate_potential_connections,
+    decay_edge_weights,
     prune_weak_connections,
+    reinforce_edge,
 )
-from .memify_thoughts import memify_thoughts, cognify_and_memify_thoughts
+from .enrich_thought_graph import enrich_thought_graph
+from .enrich_with_web import (
+    batch_enrich_with_web,
+    enrich_with_scraped_content,
+    enrich_with_web_search,
+)
+from .find_surprise_connections import find_surprise_connections
+from .get_thought_communities import get_thought_communities
+from .get_thought_neighbors import get_thought_neighbors
+from .match_projects import create_project_connections, find_project_clusters, match_to_projects
+from .memify_thoughts import cognify_and_memify_thoughts, memify_thoughts
 
 __all__ = [
     "discover_connections",

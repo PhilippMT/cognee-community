@@ -15,9 +15,11 @@ import asyncio
 import os
 
 import cognee
-from cognee.shared.logging_utils import setup_logging, INFO
+from cognee.shared.logging_utils import INFO, setup_logging
 from cognee_community_pipeline_thought_graph import run_thought_graph_pipeline
-from cognee_community_tasks_thought_graph.operations.get_thought_communities import get_thought_communities
+from cognee_community_tasks_thought_graph.operations.get_thought_communities import (
+    get_thought_communities,
+)
 
 
 async def main():
