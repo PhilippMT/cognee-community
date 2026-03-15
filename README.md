@@ -97,6 +97,8 @@ poetry run python ./examples/example.py
 | `cognee-community-vector-adapter-weaviate`   | Vector   | Weaviate vector database adapter for cognee        |
 | `cognee-community-graph-adapter-memgraph`    | Graph    | Memgraph graph database adapter for cognee         |
 | `cognee-community-graph-adapter-networkx`    | Graph    | Networkx graph database adapter for cognee         |
+| `cognee-community-graph-adapter-spanner`    | Graph    | Google Cloud Spanner (Spanner Graph) adapter for cognee |
+| `cognee-community-graph-adapter-turingdb`   | Graph    | TuringDB graph database adapter for cognee         |
 | `cognee-community-hybrid-adapter-duckdb`     | Hybrid   | DuckDB hybrid database adapter for cognee          |
 | `cognee-community-hybrid-adapter-falkor`     | Hybrid   | FalkorDB hybrid database adapter for cognee        |
 
@@ -110,9 +112,10 @@ are contained in one package (i.e. all tasks used in one pipeline are packaged t
 
 | Package Name                       | Type       | Description                    |
 |------------------------------------|------------|--------------------------------|
-| `cognee-community-pipeline-codify` | Pipeline   | Custom codify pipeline package |
-| `cognee-community-retriever-code`  | Retriever  | Custom CODE retriever package  |
-| `cognee-community-tasks-codify`    | Task       | Custom codify tasks package    |
+| `cognee-community-pipeline-codify`     | Pipeline   | Custom codify pipeline package                                        |
+| `cognee-community-retriever-code`      | Retriever  | Custom CODE retriever package                                         |
+| `cognee-community-tasks-codify`        | Task       | Custom codify tasks package                                           |
+| `cognee-community-tasks-scrapegraph`   | Task       | Web scraping tasks powered by [ScrapeGraphAI](https://github.com/ScrapeGraphAI/scrapegraph-py) |
 
 ## Repository Structure
 

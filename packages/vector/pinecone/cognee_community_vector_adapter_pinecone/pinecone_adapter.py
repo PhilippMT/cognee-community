@@ -1,4 +1,5 @@
 import asyncio
+from typing import List, Optional
 
 from cognee.infrastructure.databases.exceptions import MissingQueryParameterError
 from cognee.infrastructure.databases.vector import VectorDBInterface
@@ -194,6 +195,7 @@ class PineconeAdapter(VectorDBInterface):
         limit: int = 15,
         with_vector: bool = False,
         include_payload: bool = False,
+        node_name: Optional[List[str]] = None,
     ) -> list[ScoredResult]:
         """Search for similar vectors in the collection.
 
@@ -267,6 +269,7 @@ class PineconeAdapter(VectorDBInterface):
         limit: int | None = None,
         with_vectors: bool = False,
         include_payload: bool = False,
+        node_name: Optional[List[str]] = None,
     ) -> list[list[ScoredResult]]:
         """Perform batch search for multiple queries.
 

@@ -1,7 +1,7 @@
 import asyncio
 import json
 from textwrap import dedent
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, List, Optional
 from uuid import UUID
 
 from cognee.infrastructure.databases.vector.exceptions import CollectionNotFoundError
@@ -96,10 +96,11 @@ class FalkorDBAdapter:
         url: str | None = None,
         api_key: str | None = None,
         database_name: str | None = "cognee_graph",
+        **kwargs,
     ):
         self.driver = FalkorDB(
             host=url if url else graph_database_url,
-            port=graph_database_port,
+            port=graph_database_port if graph_database_port else 6379,
             username=graph_database_username,
             password=graph_database_password,
         )
@@ -108,7 +109,7 @@ class FalkorDBAdapter:
         self.api_key = api_key
 
     # TODO: This should return a list of results, not a single result
-    def query(self, query: str, params: dict = None) -> QueryResult:
+    async def query(self, query: str, params: dict = None) -> QueryResult:
         """
         Execute a query against the graph database.
 
@@ -406,7 +407,7 @@ class FalkorDBAdapter:
                     vectorized_data[property_name] = None
 
             query, params = await self.create_data_point_query(data_point, vectorized_data)
-            self.query(query, params)
+            await self.query(query, params)
 
     async def create_vector_index(self, index_name: str, index_property_name: str) -> None:
         """
@@ -505,7 +506,7 @@ class FalkorDBAdapter:
 
         params = {"node_id": node_id, "properties": clean_properties}
 
-        self.query(query, params)
+        await self.query(query, params)
 
     # Helper methods for DataPoint compatibility
     async def add_data_point_node(self, node: DataPoint) -> None:
@@ -604,7 +605,7 @@ class FalkorDBAdapter:
 
         edge_tuple = (source_id, target_id, relationship_name, properties)
         query = await self.create_edge_query(edge_tuple)
-        self.query(query)
+        await self.query(query)
 
     async def add_edges(self, edges: list[EdgeData]) -> None:
         """
@@ -662,7 +663,7 @@ class FalkorDBAdapter:
 
             Returns the result set containing the retrieved nodes or an empty list if not found.
         """
-        result = self.query(
+        result = await self.query(
             "MATCH (node) WHERE node.name IN $node_ids RETURN node",
             {
                 "node_ids": [str(data_point) for data_point in data_point_ids],
@@ -736,8 +737,8 @@ class FalkorDBAdapter:
         RETURN node, relation, neighbour
         """
 
-        predecessors = self.query(predecessors_query, dict(node_id=node_id))
-        successors = self.query(successors_query, dict(node_id=node_id))
+        predecessors = await self.query(predecessors_query, dict(node_id=node_id))
+        successors = await self.query(successors_query, dict(node_id=node_id))
 
         connections = []
 
@@ -769,6 +770,7 @@ class FalkorDBAdapter:
         limit: int | None = None,
         with_vector: bool = False,
         include_payload: bool = False,
+        node_name: Optional[List[str]] = None,
     ) -> list:
         """
         Search for nodes in a collection based on text or vector query, with optional limitation
@@ -811,7 +813,7 @@ class FalkorDBAdapter:
 
         if limit is None:
             query = f"MATCH (n:{label}) RETURN COUNT(n)"
-            result = self.query(query)
+            result = await self.query(query)
             limit = result.result_set[0][0]
 
         if limit == 0:
@@ -834,7 +836,7 @@ class FalkorDBAdapter:
         RETURN {", ".join(result_properties)}, score
         """).strip()
 
-        search_results = self.query(query)
+        search_results = await self.query(query)
 
         # Convert results to ScoredResult objects
         scored_results = []
@@ -869,6 +871,7 @@ class FalkorDBAdapter:
         limit: int | None = None,
         with_vectors: bool = False,
         include_payload: bool = False,
+        node_name: Optional[List[str]] = None,
     ) -> list:
         """
         Perform batch search across multiple queries based on text inputs and return results
@@ -919,7 +922,7 @@ class FalkorDBAdapter:
         """
         query = "MATCH (n) RETURN ID(n) AS id, labels(n) AS labels, properties(n) AS properties"
 
-        result = self.query(query)
+        result = await self.query(query)
 
         nodes = [
             (
@@ -933,7 +936,7 @@ class FalkorDBAdapter:
         MATCH (n)-[r]->(m)
         RETURN ID(n) AS source, ID(m) AS target, TYPE(r) AS type, properties(r) AS properties
         """
-        result = self.query(query)
+        result = await self.query(query)
         edges = [
             (
                 record[3]["source_node_id"],
@@ -965,7 +968,7 @@ class FalkorDBAdapter:
 
             Returns the result of the deletion operation from the database.
         """
-        return self.query(
+        return await self.query(
             "MATCH (node) WHERE node.id IN $node_ids DETACH DELETE node",
             {
                 "node_ids": [str(data_point) for data_point in data_point_ids],
@@ -982,7 +985,7 @@ class FalkorDBAdapter:
             - node_id (str): Unique identifier for the node to delete.
         """
         query = f"MATCH (node {{id: '{node_id}'}}) DETACH DELETE node"
-        self.query(query)
+        await self.query(query)
 
     async def delete_nodes(self, node_ids: list[str]) -> None:
         """
@@ -1024,7 +1027,7 @@ class FalkorDBAdapter:
 
             - node_id (str): Unique identifier of the node to retrieve.
         """
-        result = self.query(
+        result = await self.query(
             "MATCH (node) WHERE node.id = $node_id RETURN node",
             {"node_id": node_id},
         )
@@ -1043,7 +1046,7 @@ class FalkorDBAdapter:
 
             - node_ids (List[str]): A list of unique identifiers for the nodes to retrieve.
         """
-        result = self.query(
+        result = await self.query(
             "MATCH (node) WHERE node.id IN $node_ids RETURN node",
             {"node_ids": node_ids},
         )
@@ -1064,7 +1067,7 @@ class FalkorDBAdapter:
 
             - node_id (str): Unique identifier of the node for which to retrieve neighbors.
         """
-        result = self.query(
+        result = await self.query(
             "MATCH (node)-[]-(neighbor) WHERE node.id = $node_id RETURN DISTINCT neighbor",
             {"node_id": node_id},
         )
@@ -1085,7 +1088,7 @@ class FalkorDBAdapter:
 
             - node_id (str): Unique identifier of the node whose edges are to be retrieved.
         """
-        result = self.query(
+        result = await self.query(
             """
             MATCH (n)-[r]-(m)
             WHERE n.id = $node_id
@@ -1124,7 +1127,7 @@ class FalkorDBAdapter:
         # Check both the sanitized relationship type and the original name in properties
         sanitized_relationship = self.sanitize_relationship_name(relationship_name)
 
-        result = self.query(
+        result = await self.query(
             f"""
             MATCH (source)-[r:{sanitized_relationship}]->(target)
             WHERE source.id = $source_id AND target.id = $target_id
@@ -1154,8 +1157,8 @@ class FalkorDBAdapter:
               not. (default False)
         """
         # Get basic node and edge counts
-        node_result = self.query("MATCH (n) RETURN count(n) AS node_count")
-        edge_result = self.query("MATCH ()-[r]->() RETURN count(r) AS edge_count")
+        node_result = await self.query("MATCH (n) RETURN count(n) AS node_count")
+        edge_result = await self.query("MATCH ()-[r]->() RETURN count(r) AS edge_count")
 
         # FalkorDB returns scalar results as a list, access by index instead of key
         num_nodes = node_result.result_set[0][0] if node_result.result_set else 0
@@ -1213,7 +1216,7 @@ class FalkorDBAdapter:
                COLLECT(DISTINCT et) AS orphan_types
         """
 
-        result = self.query(query, {"content_hash": f"text_{content_hash}"})
+        result = await self.query(query, {"content_hash": f"text_{content_hash}"})
 
         if not result.result_set or not result.result_set[0]:
             return {}
@@ -1242,7 +1245,7 @@ class FalkorDBAdapter:
         if not node_type or node_type not in ["Entity", "EntityType"]:
             raise ValueError("node_type must be either 'Entity' or 'EntityType'")
 
-        result = self.query(
+        result = await self.query(
             f"""
             MATCH (n:{node_type})
             WITH n, COUNT {{ MATCH (n)--() }} as degree
@@ -1276,7 +1279,7 @@ class FalkorDBAdapter:
         RETURN DISTINCT n.id, properties(n) AS properties
         """
 
-        primary_result = self.query(primary_query, {"names": node_name})
+        primary_result = await self.query(primary_query, {"names": node_name})
         if not primary_result.result_set:
             return [], []
 
@@ -1290,7 +1293,7 @@ class FalkorDBAdapter:
         RETURN DISTINCT neighbor.id, properties(neighbor) AS properties
         """
 
-        neighbor_result = self.query(neighbor_query, {"ids": primary_ids})
+        neighbor_result = await self.query(neighbor_query, {"ids": primary_ids})
         # FalkorDB returns values by index: id, properties
         neighbor_ids = (
             [record[0] for record in neighbor_result.result_set]
@@ -1307,7 +1310,7 @@ class FalkorDBAdapter:
         RETURN n.id, properties(n) AS properties
         """
 
-        nodes_result = self.query(nodes_query, {"ids": all_ids})
+        nodes_result = await self.query(nodes_query, {"ids": all_ids})
         nodes = []
         if nodes_result.result_set:
             for record in nodes_result.result_set:
@@ -1322,7 +1325,7 @@ class FalkorDBAdapter:
         properties(r) AS properties
         """
 
-        edges_result = self.query(edges_query, {"ids": all_ids})
+        edges_result = await self.query(edges_query, {"ids": all_ids})
         edges = []
         if edges_result.result_set:
             for record in edges_result.result_set:
@@ -1347,7 +1350,7 @@ class FalkorDBAdapter:
 
     async def is_empty(self) -> bool:
         query = "MATCH (n) RETURN true LIMIT 1;"
-        result = self.query(query)
+        result = await self.query(query)
         return not result.result_set
 
 
