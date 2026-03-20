@@ -1,12 +1,16 @@
 const { useState } = React;
 
 function App() {
-  const [connectionString, setConnectionString] = useState("sqlite:///sample.db");
+  const [isonFilePath, setIsonFilePath] = useState("test_data/taxonomy.ison");
   const [datasetName, setDatasetName] = useState("main_dataset");
-  const [ontologyPath, setOntologyPath] = useState("");
-  const [schema, setSchema] = useState(null);
+
+  const [preview, setPreview] = useState(null);
+  const [feedback, setFeedback] = useState("");
+  const [showFeedback, setShowFeedback] = useState(false);
+
   const [status, setStatus] = useState("Idle");
   const [busy, setBusy] = useState(false);
+
   const [graphUrl, setGraphUrl] = useState("");
   const [question, setQuestion] = useState("");
   const [searchAnswer, setSearchAnswer] = useState("");
@@ -24,17 +28,18 @@ function App() {
     return data;
   }
 
-  async function uploadAndExtract() {
+  async function generatePreview() {
     setBusy(true);
-    setStatus("Uploading data with cognee.add() and extracting schema...");
-    setSchema(null);
+    setStatus("Ingesting .ison and generating JSON preview via LLM...");
+    setPreview(null);
+    setFeedback("");
+    setShowFeedback(false);
     try {
-      const data = await callApi("/api/upload-and-extract", {
-        connection_string: connectionString,
+      const data = await callApi("/api/generate-preview", {
+        ison_file_path: isonFilePath,
         dataset_name: datasetName,
-        ontology_file_path: ontologyPath || null,
       });
-      setSchema(data.schema);
+      setPreview(data.preview || null);
       setStatus(data.message);
     } catch (err) {
       setStatus(`Error: ${err.message}`);
@@ -43,11 +48,34 @@ function App() {
     }
   }
 
-  async function decideSchema(approved) {
+  async function regeneratePreview() {
+    if (!feedback.trim()) {
+      setStatus("Please provide feedback first.");
+      return;
+    }
+
     setBusy(true);
-    setStatus(approved ? "Running cognee.cognify()..." : "Schema rejected.");
+    setStatus("Regenerating preview using your feedback...");
     try {
-      const data = await callApi("/api/schema-decision", { approved });
+      const data = await callApi("/api/regenerate-preview", {
+        feedback,
+      });
+      setPreview(data.preview || null);
+      setFeedback("");
+      setShowFeedback(false);
+      setStatus(data.message);
+    } catch (err) {
+      setStatus(`Error: ${err.message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function approvePreview() {
+    setBusy(true);
+    setStatus("Ingesting approved JSON, generating OWL, and running cognify...");
+    try {
+      const data = await callApi("/api/approve-preview", {});
       setStatus(data.message);
     } catch (err) {
       setStatus(`Error: ${err.message}`);
@@ -75,6 +103,7 @@ function App() {
       setStatus("Please enter a question first.");
       return;
     }
+
     setBusy(true);
     setStatus("Searching the generated graph...");
     setSearchAnswer("");
@@ -95,20 +124,21 @@ function App() {
   return (
     <div className="wrap">
       <div className="card">
-        <h1>Cognee DLT Workflow Demo</h1>
+        <h1>Cognee ISON Ontology Demo</h1>
         <p className="muted">
-          Upload relational data, review extracted schema, approve to run cognify, optionally use ontology, then visualize graph.
+          Ingest .ison, generate readable preview with LLM, iterate with feedback, then ingest approved JSON and run cognify with generated OWL.
         </p>
       </div>
 
       <div className="card">
+        <h3>1) Ingest .ison + Generate Preview</h3>
         <div className="grid">
           <label>
-            Connection string
+            .ison file path
             <input
-              value={connectionString}
-              onChange={(e) => setConnectionString(e.target.value)}
-              placeholder="postgresql://user:pass@host:5432/db or sqlite:///path/to.db"
+              value={isonFilePath}
+              onChange={(e) => setIsonFilePath(e.target.value)}
+              placeholder="test_data/taxonomy.ison"
             />
           </label>
 
@@ -120,40 +150,47 @@ function App() {
               placeholder="main_dataset"
             />
           </label>
-
-          <label>
-            Custom ontology path (optional)
-            <input
-              value={ontologyPath}
-              onChange={(e) => setOntologyPath(e.target.value)}
-              placeholder="/absolute/path/to/ontology.owl"
-            />
-          </label>
         </div>
 
         <div className="row" style={{ marginTop: 12 }}>
-          <button disabled={busy} onClick={uploadAndExtract}>
-            1) Upload Data + Extract Schema
+          <button disabled={busy} onClick={generatePreview}>
+            Generate Preview
           </button>
         </div>
       </div>
 
       <div className="card">
-        <h3>2) Schema Check</h3>
-        <p className="muted">If schema looks good, click Yes to continue with cognify.</p>
-        {schema ? (
-          <pre>{JSON.stringify(schema, null, 2)}</pre>
-        ) : (
-          <p className="muted">No schema yet.</p>
-        )}
-        <div className="row">
-          <button className="no" disabled={busy || !schema} onClick={() => decideSchema(false)}>
+        <h3>2) Review Preview</h3>
+        <p className="muted">If preview looks correct, click Yes. If not, click No and provide feedback for regeneration.</p>
+
+        {preview ? <pre>{JSON.stringify(preview, null, 2)}</pre> : <p className="muted">No preview yet.</p>}
+
+        <div className="row" style={{ marginTop: 8 }}>
+          <button className="no" disabled={busy || !preview} onClick={() => setShowFeedback(true)}>
             No
           </button>
-          <button className="yes" disabled={busy || !schema} onClick={() => decideSchema(true)}>
+          <button className="yes" disabled={busy || !preview} onClick={approvePreview}>
             Yes
           </button>
         </div>
+
+        {showFeedback ? (
+          <div className="grid" style={{ marginTop: 10 }}>
+            <label>
+              What is wrong with this preview?
+              <textarea
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                placeholder="Example: rename entity labels, adjust top entity, fix relation directions."
+              />
+            </label>
+            <div className="row">
+              <button disabled={busy} onClick={regeneratePreview}>
+                Regenerate With Feedback
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="card">
@@ -182,7 +219,7 @@ function App() {
             <input
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
-              placeholder="What are the key relationships in this dataset?"
+              placeholder="What entities are most connected?"
             />
           </label>
         </div>
