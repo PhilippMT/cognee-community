@@ -134,14 +134,15 @@ class FalkorDBAdapter(VectorDBInterface, GraphDBInterface):
         return sanitized
 
     # TODO: This should return a list of results, not a single result
-    async def query(self, query: str, params: dict = None) -> QueryResult:
+    async def query(self, query: str, params: dict = None) -> list:
         """
         Execute a query against the graph database.
 
-        Handles exceptions during the query execution by logging errors and re-raising the
-        exception.
-
-        The method can be called only if a valid query string and parameters are provided.
+        Returns a list of result rows, conforming to the ``GraphDBInterface``
+        contract (``List[Any]``).  The returned list also exposes a
+        ``result_set`` attribute (pointing to itself) so that existing
+        internal code that accesses ``result.result_set`` continues to work
+        unchanged.
 
         Parameters:
         -----------
@@ -152,7 +153,7 @@ class FalkorDBAdapter(VectorDBInterface, GraphDBInterface):
         Returns:
         --------
 
-            The result of the query execution, returned by the graph database.
+            A list of result rows from the query execution.
         """
         if params is None:
             params = {}
@@ -160,10 +161,26 @@ class FalkorDBAdapter(VectorDBInterface, GraphDBInterface):
         graph = self.driver.select_graph(self.graph_name)
 
         try:
-            return graph.query(query, params)
+            raw = graph.query(query, params)
         except Exception as e:
             print(f"Error executing query: {e}")
             raise e
+
+        # Wrap the result_set list so it satisfies both:
+        #   - GraphDBInterface contract: List[Any]
+        #   - Internal adapter code: result.result_set
+        rows = raw.result_set if raw.result_set else []
+
+        class _ResultList(list):
+            """A plain list with a ``result_set`` attribute for backward compat."""
+
+            __slots__ = ()
+
+            @property
+            def result_set(self):
+                return self
+
+        return _ResultList(rows)
 
     async def embed_data(self, data: list[str]) -> list[list[float]]:
         """
