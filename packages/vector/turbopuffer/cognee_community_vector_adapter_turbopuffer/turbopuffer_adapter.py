@@ -4,7 +4,6 @@ from typing import List, Optional
 from uuid import UUID
 
 import turbopuffer
-
 from cognee.infrastructure.databases.exceptions import MissingQueryParameterError
 from cognee.infrastructure.databases.vector import VectorDBInterface
 from cognee.infrastructure.databases.vector.embeddings.EmbeddingEngine import (

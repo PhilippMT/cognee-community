@@ -9,7 +9,7 @@ load_dotenv()
 
 # NOTE: Importing the register module we let cognee know it can use the Turbopuffer vector adapter
 # NOTE: The "noqa: F401" mark is to make sure the linter doesn't flag this as an unused import
-from cognee_community_vector_adapter_turbopuffer import register  # noqa: F401
+from cognee_community_vector_adapter_turbopuffer import register  # noqa: F401, E402
 
 
 async def main():
