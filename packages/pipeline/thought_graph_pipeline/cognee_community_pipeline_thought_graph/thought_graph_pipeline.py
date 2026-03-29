@@ -14,18 +14,21 @@ Usage:
         print(status)
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List
 
+from cognee.modules.data.methods import create_authorized_dataset
 from cognee.modules.pipelines import run_tasks
 from cognee.modules.pipelines.tasks.task import Task
-from cognee.modules.data.methods import create_authorized_dataset
 from cognee.modules.users.methods import get_default_user
 from cognee.modules.users.models import User
 from cognee.shared.logging_utils import get_logger
-
 from cognee_community_tasks_thought_graph.operations.add_thought import add_thoughts_batch
-from cognee_community_tasks_thought_graph.operations.enrich_thought_graph import enrich_thought_graph
-from cognee_community_tasks_thought_graph.operations.find_surprise_connections import find_surprise_connections
+from cognee_community_tasks_thought_graph.operations.enrich_thought_graph import (
+    enrich_thought_graph,
+)
+from cognee_community_tasks_thought_graph.operations.find_surprise_connections import (
+    find_surprise_connections,
+)
 from cognee_community_tasks_thought_graph.operations.memify_thoughts import memify_thoughts
 
 logger = get_logger("thought_graph_pipeline")
@@ -60,6 +63,19 @@ async def _find_surprises_task(enrichment_results, **kwargs):
     )
     logger.info(f"Found {len(surprises)} surprise connections")
     yield {"enrichment": enrichment_results, "surprises": surprises}
+
+
+async def _memify_task(previous_results, **kwargs):
+    """Task wrapper: run the full memify enrichment pipeline."""
+    results = await memify_thoughts(
+        enable_web_enrichment=kwargs.get("enable_web_enrichment", False),
+        enable_project_matching=kwargs.get("enable_project_matching", True),
+        enable_edge_decay=kwargs.get("enable_edge_decay", True),
+        enable_potential_connections=kwargs.get("enable_potential_connections", True),
+        project_patterns=kwargs.get("project_patterns"),
+    )
+    logger.info("Memify enrichment complete")
+    yield {"previous": previous_results, "memify": results}
 
 
 async def run_thought_graph_pipeline(
@@ -104,6 +120,9 @@ async def run_thought_graph_pipeline(
         Task(_enrich_graph_task),
         Task(_find_surprises_task),
     ]
+
+    if run_memify:
+        tasks.append(Task(_memify_task))
 
     dataset = await create_authorized_dataset(dataset_name, user)
 

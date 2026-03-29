@@ -10,8 +10,8 @@ Classes:
     SurpriseScore: Quantifies how unexpected a connection is across multiple dimensions.
 """
 
-from .thought_node import ThoughtNode
 from .connection import Connection
 from .surprise_score import SurpriseScore
+from .thought_node import ThoughtNode
 
 __all__ = ["ThoughtNode", "Connection", "SurpriseScore"]

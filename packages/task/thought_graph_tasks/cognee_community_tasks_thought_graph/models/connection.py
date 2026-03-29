@@ -1,15 +1,16 @@
 """Connection model for representing relationships between thoughts."""
 
-from typing import Optional, Dict, Any
 from datetime import datetime, timezone
-from pydantic import BaseModel, Field
+from typing import Any, Dict, Optional
 from uuid import UUID
+
+from pydantic import BaseModel, Field
 
 
 class Connection(BaseModel):
     """
     Represents a connection/relationship between two thoughts.
-    
+
     Attributes:
         source_id: ID of the source thought node
         target_id: ID of the target thought node
@@ -21,7 +22,7 @@ class Connection(BaseModel):
         bidirectional: Whether this connection works both ways
         surprise_score: How unexpected/novel this connection is (computed)
     """
-    
+
     source_id: UUID = Field(description="ID of the source thought node")
     target_id: UUID = Field(description="ID of the target thought node")
     relationship_type: str = Field(
@@ -56,7 +57,7 @@ class Connection(BaseModel):
         le=1.0,
         description="How unexpected/novel this connection is"
     )
-    
+
     # Metadata for path-based connections
     path_length: Optional[int] = Field(
         default=None,
@@ -66,18 +67,18 @@ class Connection(BaseModel):
         default=None,
         description="IDs of intermediate nodes in the connection path"
     )
-    
+
     class Config:
         """Pydantic configuration."""
         json_encoders = {
             UUID: str,
             datetime: lambda v: v.isoformat()
         }
-    
+
     def __repr__(self) -> str:
         """String representation of the connection."""
         return f"Connection({self.source_id} --[{self.relationship_type}]--> {self.target_id}, strength={self.strength:.2f})"
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert connection to dictionary."""
         return {

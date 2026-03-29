@@ -19,7 +19,7 @@ import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from dtos import (
     AddThoughtRequest,
@@ -65,7 +65,18 @@ app = FastAPI(
         "enrich with graph algorithms, and surface surprise insights."
     ),
     lifespan=lifespan,
+    docs_url=None,
 )
+
+
+@app.get("/docs", include_in_schema=False)
+async def scalar_docs():
+    from scalar_fastapi import get_scalar_api_reference
+
+    return get_scalar_api_reference(
+        openapi_url=app.openapi_url,
+        title=app.title,
+    )
 
 app.add_middleware(
     CORSMiddleware,
@@ -521,6 +532,26 @@ async def get_neighbors(thought_id: str, max_depth: int = 1):
             thought_id=UUID(thought_id),
             max_depth=max_depth,
         )
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+# ── Graph Visualization ─────────────────────────────────────────────────
+
+
+@app.get("/visualize", response_class=HTMLResponse, tags=["visualization"])
+async def visualize():
+    """
+    Generate an interactive HTML visualization of the thought graph.
+
+    Returns a self-contained HTML page with the full knowledge graph
+    rendered as an interactive network diagram.
+    """
+    from cognee.api.v1.visualize import visualize_graph
+
+    try:
+        html = await visualize_graph()
+        return HTMLResponse(html)
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
