@@ -8,9 +8,9 @@ from cognee.modules.search.types import SearchType
 from cognee.modules.users.methods import get_default_user
 from cognee.shared.logging_utils import get_logger
 
-# NOTE: Importing the register module we let cognee know it can use the DuckDB graph adapter
+# NOTE: Importing the register module we let cognee know it can use the Turbopuffer vector adapter
 # NOTE: The "noqa: F401" mark is to make sure the linter doesn't flag this as an unused import
-from cognee_community_hybrid_adapter_duckdb import register  # noqa: F401
+from cognee_community_vector_adapter_turbopuffer import register  # noqa: F401
 
 import cognee
 
@@ -112,23 +112,38 @@ async def test_vector_engine_search_none_limit():
 
 
 async def main():
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
+    cognee.config.set_relational_db_config(
+        {
+            "db_provider": "sqlite",
+        }
+    )
     cognee.config.set_vector_db_config(
         {
-            "vector_db_provider": "duckdb",
-            "vector_db_url": None,
-            # "vector_db_port": 6379,
+            "vector_db_provider": "turbopuffer",
+            "vector_db_url": os.getenv("TURBOPUFFER_REGION", "gcp-us-central1"),
+            "vector_db_key": os.getenv("TURBOPUFFER_API_KEY", ""),
+            "vector_dataset_database_handler": "turbopuffer",
+        }
+    )
+    cognee.config.set_graph_db_config(
+        {
+            "graph_database_provider": "kuzu",
         }
     )
 
     data_directory_path = str(
         pathlib.Path(
-            os.path.join(pathlib.Path(__file__).parent, ".data_storage/test_duckdb")
+            os.path.join(pathlib.Path(__file__).parent, ".data_storage/test_turbopuffer")
         ).resolve()
     )
     cognee.config.data_root_directory(data_directory_path)
     cognee_directory_path = str(
         pathlib.Path(
-            os.path.join(pathlib.Path(__file__).parent, ".cognee_system/test_duckdb")
+            os.path.join(pathlib.Path(__file__).parent, ".cognee_system/test_turbopuffer")
         ).resolve()
     )
     cognee.config.system_root_directory(cognee_directory_path)
@@ -209,7 +224,7 @@ async def main():
 
     await cognee.prune.prune_system(metadata=True)
     tables_in_database = await vector_engine.get_collection_names()
-    assert len(tables_in_database) == 0, "Duckdb database is not empty"
+    assert len(tables_in_database) == 0, "Turbopuffer database is not empty"
 
     await test_vector_engine_search_none_limit()
 
