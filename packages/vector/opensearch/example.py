@@ -8,10 +8,9 @@ os.environ["LLM_API_KEY"] = ""
 
 
 async def main():
-    from cognee import SearchType, add, cognify, config, prune, search
-
     # NOTE: Importing the register module we let cognee know it can use opensearch vector adapter
     # NOTE: The "noqa: F401" mark is to make sure the linter doesn't flag this as an unused import
+    from cognee import SearchType, add, cognify, config, prune, search
     from cognee_community_vector_adapter_opensearch import register  # noqa: F401
 
     system_path = pathlib.Path(__file__).parent

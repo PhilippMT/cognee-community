@@ -1,7 +1,9 @@
 import asyncio
 import json
+from collections import defaultdict
+from enum import Enum
 from textwrap import dedent
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
 from cognee.infrastructure.databases.exceptions import MissingQueryParameterError
@@ -104,15 +106,44 @@ class FalkorDBAdapter(VectorDBInterface, GraphDBInterface):
         self.graph_name = database_name if database_name else "cognee_graph"
         self.api_key = api_key
 
+    @staticmethod
+    def _sanitize_cypher_params(params: dict) -> dict:
+        """Recursively convert Enum values to their underlying value.
+
+        FalkorDB serializes unknown types via ``str()``, which turns
+        ``MyEnum.member`` into ``"MyEnum.member"`` – an invalid Cypher
+        literal.  This helper ensures every Enum is replaced by its
+        ``.value`` before the params reach the driver.
+        """
+        sanitized = {}
+        for key, value in params.items():
+            if isinstance(value, dict):
+                sanitized[key] = FalkorDBAdapter._sanitize_cypher_params(value)
+            elif isinstance(value, Enum):
+                sanitized[key] = value.value
+            elif isinstance(value, list):
+                sanitized[key] = [
+                    item.value
+                    if isinstance(item, Enum)
+                    else FalkorDBAdapter._sanitize_cypher_params(item)
+                    if isinstance(item, dict)
+                    else item
+                    for item in value
+                ]
+            else:
+                sanitized[key] = value
+        return sanitized
+
     # TODO: This should return a list of results, not a single result
-    async def query(self, query: str, params: dict = None) -> QueryResult:
+    async def query(self, query: str, params: dict = None) -> list:
         """
         Execute a query against the graph database.
 
-        Handles exceptions during the query execution by logging errors and re-raising the
-        exception.
-
-        The method can be called only if a valid query string and parameters are provided.
+        Returns a list of result rows, conforming to the ``GraphDBInterface``
+        contract (``List[Any]``).  The returned list also exposes a
+        ``result_set`` attribute (pointing to itself) so that existing
+        internal code that accesses ``result.result_set`` continues to work
+        unchanged.
 
         Parameters:
         -----------
@@ -123,21 +154,42 @@ class FalkorDBAdapter(VectorDBInterface, GraphDBInterface):
         Returns:
         --------
 
-            The result of the query execution, returned by the graph database.
+            A list of result rows from the query execution.
         """
         if params is None:
             params = {}
+        params = self._sanitize_cypher_params(params)
         graph = self.driver.select_graph(self.graph_name)
 
         try:
-            return graph.query(query, params)
+            raw = graph.query(query, params)
         except Exception as e:
             print(f"Error executing query: {e}")
             raise e
 
+        # Wrap the result_set list so it satisfies both:
+        #   - GraphDBInterface contract: List[Any]
+        #   - Internal adapter code: result.result_set
+        rows = raw.result_set if raw.result_set else []
+
+        class _ResultList(list):
+            """A plain list with a ``result_set`` attribute for backward compat."""
+
+            __slots__ = ()
+
+            @property
+            def result_set(self):
+                return self
+
+        return _ResultList(rows)
+
     async def embed_data(self, data: list[str]) -> list[list[float]]:
         """
         Embed a list of text data into vector representations using the embedding engine.
+
+        Empty or blank-only inputs are handled gracefully: an empty list
+        returns ``[]``, and blank strings are skipped while preserving
+        index alignment in the output.
 
         Parameters:
         -----------
@@ -150,7 +202,23 @@ class FalkorDBAdapter(VectorDBInterface, GraphDBInterface):
             - list[list[float]]: A list of lists, where each inner list contains float values
               representing the embedded vectors.
         """
-        return await self.embedding_engine.embed_text(data)  # type: ignore
+        if not data:
+            return []
+
+        # Filter out blank strings that would cause embedding API errors
+        non_blank = [s for s in data if s and s.strip()]
+        if not non_blank:
+            return [[] for _ in data]
+
+        result = await self.embedding_engine.embed_text(non_blank)  # type: ignore
+
+        # Fast path: no blanks were filtered
+        if len(non_blank) == len(data):
+            return result
+
+        # Re-align: insert empty embeddings at filtered-out positions
+        it = iter(result)
+        return [next(it) if (s and s.strip()) else [] for s in data]
 
     async def stringify_properties(self, properties: dict) -> str:
         """
@@ -470,9 +538,7 @@ class FalkorDBAdapter(VectorDBInterface, GraphDBInterface):
         """
         pass
 
-    async def add_node(
-        self, node: Union[DataPoint, str], properties: Optional[Dict[str, Any]] = None
-    ) -> None:
+    async def add_node(self, node_id: str, properties: Optional[Dict[str, Any]] = None) -> None:
         """
         Add a single node with specified properties to the graph.
 
@@ -482,7 +548,6 @@ class FalkorDBAdapter(VectorDBInterface, GraphDBInterface):
             - node_id (str): Unique identifier for the node being added.
             - properties (Dict[str, Any]): A dictionary of properties associated with the node.
         """
-        node_id = str(node.id)
         # Clean the properties - remove None values and handle special types
         clean_properties = {"id": node_id}
         for key, value in properties.items():
@@ -531,52 +596,63 @@ class FalkorDBAdapter(VectorDBInterface, GraphDBInterface):
         """
         Add multiple nodes to the graph in a single operation.
 
+        Collects all embeddable property values across all DataPoint nodes and
+        makes a single ``embed_data()`` call instead of one per node.  Individual
+        ``add_node()`` MERGE queries are still issued because FalkorDB's
+        ``vecf32()`` function requires literal float-list values in the Cypher
+        query string (UNWIND parameterisation is not possible).
+
         Parameters:
         -----------
 
             - nodes (Union[List[Node], List[DataPoint]]): A list of Node tuples
                                 or DataPoint objects to be added to the graph.
         """
+        if not nodes:
+            return
+
+        # Phase 1 — collect embeddable values across *all* DataPoint nodes.
+        all_embeddable: list[str] = []
+        datapoint_nodes: list[tuple] = []  # (node, property_names, vector_map)
+
         for node in nodes:
             if isinstance(node, tuple) and len(node) == 2:
-                # Node is in (node_id, properties) format
                 node_id, properties = node
-                await self.add_node(node, properties)
-            elif hasattr(node, "id") and hasattr(node, "model_dump"):
-                # Node is a DataPoint object
-                # TODO: Figure out how to get this data if node is of type Node, not DataPoint
-                embeddable_values = []
-                vectorized_values = []
-                property_names = DataPoint.get_embeddable_property_names(node)  # type: ignore
-                vector_map = {}
-                for property_name in property_names:
-                    property_value = getattr(node, property_name, None)
-                    if property_value is not None:
-                        vector_map[property_name] = len(embeddable_values)
-                        embeddable_values.append(property_value)
-                if len(embeddable_values) > 0:
-                    vectorized_values = await self.embed_data(embeddable_values)
-
-                properties = {
-                    **node.model_dump(),
-                    **(
-                        {
-                            f"{property_name}_vector": (
-                                vectorized_values[vector_map[property_name]]
-                                if property_name in vector_map
-                                else []
-                            )
-                            for property_name in property_names
-                        }
-                    ),
-                }
-
-                await self.add_node(node, properties)
-            else:
+                await self.add_node(node_id, properties)
+                continue
+            if not (hasattr(node, "id") and hasattr(node, "model_dump")):
                 raise ValueError(
                     f"Invalid node format: {node}. Expected tuple (node_id, properties)"
                     f"or DataPoint object."
                 )
+            property_names = DataPoint.get_embeddable_property_names(node)  # type: ignore
+            vector_map: dict[str, int] = {}
+            for property_name in property_names:
+                property_value = getattr(node, property_name, None)
+                if property_value is not None:
+                    vector_map[property_name] = len(all_embeddable)
+                    all_embeddable.append(property_value)
+            datapoint_nodes.append((node, property_names, vector_map))
+
+        # Phase 2 — single batch embedding call.
+        all_vectors: list[list[float]] = []
+        if all_embeddable:
+            all_vectors = await self.embed_data(all_embeddable)
+
+        # Phase 3 — build properties and persist each node.
+        for node, property_names, vector_map in datapoint_nodes:
+            properties = {
+                **node.model_dump(),
+                **{
+                    f"{property_name}_vector": (
+                        all_vectors[vector_map[property_name]]
+                        if property_name in vector_map
+                        else []
+                    )
+                    for property_name in property_names
+                },
+            }
+            await self.add_node(str(node.id), properties)
 
     async def add_edge(
         self,
@@ -609,25 +685,69 @@ class FalkorDBAdapter(VectorDBInterface, GraphDBInterface):
         """
         Add multiple edges to the graph in a single operation.
 
+        Groups edges by sanitised relationship type and issues one UNWIND MERGE
+        query per type instead of one query per edge.  FalkorDB requires a
+        static relationship-type label in Cypher (no variable type names), so
+        grouping is necessary.
+
         Parameters:
         -----------
 
             - edges (List[EdgeData]): A list of EdgeData objects representing edges to be added.
         """
+        if not edges:
+            return
+
+        def _flatten_value(v: Any) -> Any:
+            """Convert values to FalkorDB-compatible scalar types."""
+            if isinstance(v, UUID):
+                return str(v)
+            if isinstance(v, (dict, list)):
+                return json.dumps(v)
+            if isinstance(v, (str, int, float, bool)) or v is None:
+                return v
+            return str(v)
+
+        grouped: dict[str, list] = defaultdict(list)
         for edge in edges:
-            if isinstance(edge, tuple) and len(edge) == 4:
-                # Edge is in (source_id, target_id, relationship_name, properties) format
-                source_id, target_id, relationship_name, properties = edge
-                await self.add_edge(source_id, target_id, relationship_name, properties)
-            else:
+            if not (isinstance(edge, tuple) and len(edge) == 4):
                 raise ValueError(
                     f"Invalid edge format: {edge}. Expected tuple (source_id, target_id,"
                     f"relationship_name, properties)."
                 )
+            rel_type = self.sanitize_relationship_name(edge[2])
+            grouped[rel_type].append(edge)
+
+        for rel_type, group in grouped.items():
+            params_list = [
+                {
+                    "source_id": str(e[0]),
+                    "target_id": str(e[1]),
+                    "props": {
+                        k: _flatten_value(v)
+                        for k, v in {**e[3], "relationship_name": e[2]}.items()
+                        if v is not None
+                    },
+                }
+                for e in group
+            ]
+            await self.query(
+                f"""
+                UNWIND $items AS e
+                MERGE (source {{id: e.source_id}})
+                MERGE (target {{id: e.target_id}})
+                MERGE (source)-[r:{rel_type}]->(target)
+                SET r += e.props, r.updated_at = timestamp()
+                """,
+                {"items": params_list},
+            )
 
     async def has_edges(self, edges: list[EdgeData]) -> list[EdgeData]:
         """
         Check if the specified edges exist in the graph based on their attributes.
+
+        Groups edges by sanitised relationship type and issues one UNWIND query
+        per type instead of one MATCH per edge.
 
         Parameters:
         -----------
@@ -639,11 +759,39 @@ class FalkorDBAdapter(VectorDBInterface, GraphDBInterface):
 
             Returns a list of edge tuples that exist in the graph.
         """
-        existing_edges = []
+        if not edges:
+            return []
+
+        grouped: dict[str, list] = defaultdict(list)
         for edge in edges:
-            exists = await self.has_edge(str(edge[0]), str(edge[1]), edge[2])
-            if exists:
-                existing_edges.append(edge)
+            rel_type = self.sanitize_relationship_name(edge[2])
+            grouped[rel_type].append(edge)
+
+        existing_edges: list[EdgeData] = []
+        for rel_type, group in grouped.items():
+            params_list = [
+                {
+                    "source_id": str(e[0]),
+                    "target_id": str(e[1]),
+                    "rel_name": e[2],
+                }
+                for e in group
+            ]
+            result = await self.query(
+                f"""
+                UNWIND $items AS e
+                OPTIONAL MATCH (source)-[r:{rel_type}]->(target)
+                WHERE source.id = e.source_id AND target.id = e.target_id
+                AND (r.relationship_name = e.rel_name
+                     OR NOT EXISTS(r.relationship_name))
+                RETURN e.source_id, e.target_id, e.rel_name,
+                       r IS NOT NULL AS edge_exists
+                """,
+                {"items": params_list},
+            )
+            for i, row in enumerate(result.result_set):
+                if row[3]:  # edge_exists
+                    existing_edges.append(group[i])
         return existing_edges
 
     async def retrieve(self, collection_name: str, data_point_ids: list[str]):
@@ -836,8 +984,8 @@ class FalkorDBAdapter(VectorDBInterface, GraphDBInterface):
 
         query = dedent(f"""
             CALL db.idx.vector.queryNodes(
-                '{label}',
-                '{attribute_name}_vector',
+                "{label}",
+                "{attribute_name}_vector",
                 {limit},
                 vecf32({query_vector})
             )
